@@ -1,73 +1,62 @@
-# React + TypeScript + Vite
+# Drone Telemetry Frontend (Vite + React + TypeScript)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Production-ready UI for live drone telemetry against the backend at `http://<YOUR_VPS_PUBLIC_IP>:8000`.
 
-Currently, two official plugins are available:
+## Features
+- Dashboard list with status, mode, battery bar, last-seen, GPS/emergency flags.
+- Drone detail view with live WebSocket telemetry, staleness indicator, and 5s REST polling fallback.
+- Map (Leaflet/OpenStreetMap) with markers and selection.
+- KPIs (altitude, battery, heading, speeds) plus lightweight sparklines.
+- Backend health banner and reconnect/backoff for WS.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Quick start
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Create `.env` (dev) or inject env at build/deploy:
 ```
+VITE_API_BASE=http://<YOUR_VPS_PUBLIC_IP>:8000
+```
+
+Run locally (uses Vite proxy for `/api`):
+```bash
+npm run dev
+```
+
+Production build:
+```bash
+npm run build
+npm run preview   # optional local check
+```
+
+## Connectivity checklist
+- From your laptop (not the VPS), verify:
+  ```bash
+  curl http://<YOUR_VPS_PUBLIC_IP>:8000/api/v1/health
+  ```
+- Browser must use the VPS host, **not** `localhost:8000`.
+- If CORS blocks requests, allow your frontend origin on the backend or keep using the Vite proxy for dev.
+- For HTTPS frontends, switch WS to `wss://<host>:8000/...`; otherwise `ws://`.
+- Ensure firewall/security groups allow inbound TCP 8000 (and 80/443 if using a reverse proxy).
+
+## Env + proxy notes
+- `VITE_API_BASE` drives REST and WS hosts; trailing slashes are trimmed.
+- Vite dev server proxies `/api/*` to `VITE_API_BASE` so you avoid CORS locally.
+
+## Project structure
+- `src/api` – typed clients for REST.
+- `src/hooks/useLiveTelemetry` – WebSocket with exponential backoff + polling fallback and history buffer.
+- `src/components` – dashboard list, map, detail panel, sparklines.
+- `src/config.ts` – shared thresholds and base URLs.
+
+## Expected endpoints
+- `GET /api/v1/health`
+- `GET /api/v1/drones`
+- `GET /api/v1/drones/{id}/telemetry/latest`
+- `WS /api/v1/drones/{id}/telemetry/stream`
+
+## Operational tips
+- Staleness threshold: 10s since last telemetry → marked `STALE`.
+- If WS drops, auto-reconnect with backoff; REST polling (5s) continues while closed.
+- Use absolute time on hover (browser default title) and relative time in UI.
