@@ -300,19 +300,6 @@ const DroneDetailPanel = ({
                 />
               </Grid>
             </Grid>
-
-            {/* Last update */}
-            <Box
-              sx={{
-                mt: 2,
-                pt: 2,
-                borderTop: '1px solid var(--border-subtle)',
-              }}
-            >
-              <Typography sx={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                Last update: <span style={{ color: 'var(--text-secondary)' }}>{lastSeenText}</span>
-              </Typography>
-            </Box>
           </Box>
         </Grid>
 
