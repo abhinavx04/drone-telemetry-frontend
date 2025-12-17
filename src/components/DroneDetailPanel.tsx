@@ -53,6 +53,13 @@ const Stat = ({ icon, label, value, unit, accent }: StatProps) => (
   </Box>
 )
 
+// Helper function to safely get numeric value (handles null, undefined, and 0 properly)
+const getNumericValue = (value: number | null | undefined): number | undefined => {
+  if (value === null || value === undefined) return undefined
+  if (typeof value === 'number' && !isNaN(value)) return value
+  return undefined
+}
+
 const DroneDetailPanel = ({
   summary,
   telemetry,
@@ -63,11 +70,18 @@ const DroneDetailPanel = ({
   isStale,
   currentTimeMs,
 }: Props) => {
-  const heading = typeof telemetry?.heading_deg === 'number' ? telemetry.heading_deg : undefined
-  const groundSpeed = typeof telemetry?.ground_speed_mps === 'number' ? telemetry.ground_speed_mps : undefined
-  const climb = typeof telemetry?.climb_rate_mps === 'number' ? telemetry.climb_rate_mps : undefined
-  const altitude = telemetry?.absolute_altitude_m ?? summary?.position?.alt_m
-  const battery = telemetry?.battery_percentage ?? summary?.battery_pct
+  // Fixed: Properly handle null values and 0 - check if value exists and is a number
+  const heading = getNumericValue(telemetry?.heading_deg)
+  const groundSpeed = getNumericValue(telemetry?.ground_speed_mps)
+  const climb = getNumericValue(telemetry?.climb_rate_mps)
+  
+  // Fixed: Check if telemetry value exists (including 0), only fall back to summary if null/undefined
+  const altitude = telemetry?.absolute_altitude_m != null 
+    ? telemetry.absolute_altitude_m 
+    : summary?.position?.alt_m
+  const battery = telemetry?.battery_percentage != null 
+    ? telemetry.battery_percentage 
+    : summary?.battery_pct
   const mode = telemetry?.flight_mode ?? summary?.flight_mode
   const gps = telemetry?.gps_fix ?? summary?.gps_fix
   const emergency = telemetry?.is_emergency ?? summary?.is_emergency
@@ -82,6 +96,27 @@ const DroneDetailPanel = ({
   ) : (
     <WifiOffIcon sx={{ fontSize: 14 }} />
   )
+
+  // Debug panel data - show all received telemetry fields
+  const debugData = useMemo(() => {
+    if (!telemetry) return null
+    return {
+      'drone_id': telemetry.drone_id,
+      'timestamp': telemetry.timestamp != null ? new Date(telemetry.timestamp * 1000).toISOString() : null,
+      'received_timestamp': telemetry.received_timestamp != null ? new Date(telemetry.received_timestamp * 1000).toISOString() : null,
+      'latitude': telemetry.latitude,
+      'longitude': telemetry.longitude,
+      'absolute_altitude_m': telemetry.absolute_altitude_m,
+      'battery_percentage': telemetry.battery_percentage,
+      'flight_mode': telemetry.flight_mode,
+      'heading_deg': telemetry.heading_deg,
+      'ground_speed_mps': telemetry.ground_speed_mps,
+      'climb_rate_mps': telemetry.climb_rate_mps,
+      'gps_fix': telemetry.gps_fix,
+      'is_emergency': telemetry.is_emergency,
+      'ingest_source': telemetry.ingest_source,
+    }
+  }, [telemetry])
 
   return (
     <Box className="card">
@@ -241,7 +276,7 @@ const DroneDetailPanel = ({
                 <Stat
                   icon={<ExploreIcon sx={{ fontSize: 16 }} />}
                   label="Heading"
-                  value={typeof heading === 'number' ? heading.toFixed(0) : undefined}
+                  value={heading != null ? heading.toFixed(0) : undefined}
                   unit="°"
                   accent="var(--accent-cyan)"
                 />
@@ -250,7 +285,7 @@ const DroneDetailPanel = ({
                 <Stat
                   icon={<SpeedIcon sx={{ fontSize: 16 }} />}
                   label="Ground Speed"
-                  value={typeof groundSpeed === 'number' ? groundSpeed.toFixed(1) : undefined}
+                  value={groundSpeed != null ? groundSpeed.toFixed(1) : undefined}
                   unit="m/s"
                   accent="var(--accent-yellow)"
                 />
@@ -259,7 +294,7 @@ const DroneDetailPanel = ({
                 <Stat
                   icon={<TrendingUpIcon sx={{ fontSize: 16 }} />}
                   label="Climb Rate"
-                  value={typeof climb === 'number' ? climb.toFixed(1) : undefined}
+                  value={climb != null ? climb.toFixed(1) : undefined}
                   unit="m/s"
                   accent="var(--accent-cyan)"
                 />
@@ -313,6 +348,68 @@ const DroneDetailPanel = ({
             </Stack>
           </Box>
         </Grid>
+
+        {/* Debug Panel - Raw Telemetry Data */}
+        {debugData && (
+          <Grid item xs={12}>
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 'var(--radius-md)',
+                bgcolor: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <Box className="section-header" sx={{ mb: 2 }}>
+                <Typography className="section-title">Raw Telemetry Data (All Fields Received)</Typography>
+                <Box className="section-line" />
+              </Box>
+              <Box
+                sx={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 1.5,
+                }}
+              >
+                {Object.entries(debugData).map(([key, value]) => (
+                  <Box
+                    key={key}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 'var(--radius-sm)',
+                      bgcolor: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: '0.7rem',
+                        color: 'var(--text-muted)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        mb: 0.5,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {key}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: '0.85rem',
+                        fontFamily: 'var(--font-mono)',
+                        color: value != null ? 'var(--text-primary)' : 'var(--text-muted)',
+                        fontWeight: 500,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {value != null ? String(value) : 'null'}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+            </Box>
+          </Grid>
+        )}
       </Grid>
     </Box>
   )
