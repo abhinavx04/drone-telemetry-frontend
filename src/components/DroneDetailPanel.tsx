@@ -12,6 +12,7 @@ import GpsOffIcon from '@mui/icons-material/GpsOff'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import WifiIcon from '@mui/icons-material/Wifi'
 import WifiOffIcon from '@mui/icons-material/WifiOff'
+import LocationOnIcon from '@mui/icons-material/LocationOn'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { DroneSummary, Telemetry } from '../api/types'
@@ -53,13 +54,6 @@ const Stat = ({ icon, label, value, unit, accent }: StatProps) => (
   </Box>
 )
 
-// Helper function to safely get numeric value (handles null, undefined, and 0 properly)
-const getNumericValue = (value: number | null | undefined): number | undefined => {
-  if (value === null || value === undefined) return undefined
-  if (typeof value === 'number' && !isNaN(value)) return value
-  return undefined
-}
-
 const DroneDetailPanel = ({
   summary,
   telemetry,
@@ -70,10 +64,24 @@ const DroneDetailPanel = ({
   isStale,
   currentTimeMs,
 }: Props) => {
-  // Fixed: Properly handle null values and 0 - check if value exists and is a number
-  const heading = getNumericValue(telemetry?.heading_deg)
-  const groundSpeed = getNumericValue(telemetry?.ground_speed_mps)
-  const climb = getNumericValue(telemetry?.climb_rate_mps)
+  // Extract numeric values - ensure 0 and negative values are preserved
+  const heading = typeof telemetry?.heading_deg === 'number' && !isNaN(telemetry.heading_deg)
+    ? telemetry.heading_deg
+    : undefined
+  const groundSpeed = typeof telemetry?.ground_speed_mps === 'number' && !isNaN(telemetry.ground_speed_mps)
+    ? telemetry.ground_speed_mps
+    : undefined
+  const climb = typeof telemetry?.climb_rate_mps === 'number' && !isNaN(telemetry.climb_rate_mps)
+    ? telemetry.climb_rate_mps
+    : undefined
+  
+  // Extract latitude and longitude - ensure they display even if 0
+  const latitude = typeof telemetry?.latitude === 'number' && !isNaN(telemetry.latitude)
+    ? telemetry.latitude
+    : undefined
+  const longitude = typeof telemetry?.longitude === 'number' && !isNaN(telemetry.longitude)
+    ? telemetry.longitude
+    : undefined
   
   // Fixed: Check if telemetry value exists (including 0), only fall back to summary if null/undefined
   const altitude = telemetry?.absolute_altitude_m != null 
@@ -83,8 +91,14 @@ const DroneDetailPanel = ({
     ? telemetry.battery_percentage 
     : summary?.battery_pct
   const mode = telemetry?.flight_mode ?? summary?.flight_mode
-  const gps = telemetry?.gps_fix ?? summary?.gps_fix
-  const emergency = telemetry?.is_emergency ?? summary?.is_emergency
+  
+  // Extract booleans - ensure false values are preserved (check if value is explicitly defined, not undefined)
+  const gps = telemetry?.gps_fix !== undefined
+    ? telemetry.gps_fix
+    : summary?.gps_fix
+  const emergency = telemetry?.is_emergency !== undefined
+    ? telemetry.is_emergency
+    : summary?.is_emergency
 
   const lastSeenText = useMemo(() => {
     if (!lastUpdateMs) return '—'
@@ -297,6 +311,22 @@ const DroneDetailPanel = ({
                   value={climb != null ? climb.toFixed(1) : undefined}
                   unit="m/s"
                   accent="var(--accent-cyan)"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <Stat
+                  icon={<LocationOnIcon sx={{ fontSize: 16 }} />}
+                  label="Latitude"
+                  value={latitude != null ? latitude.toFixed(6) : undefined}
+                  accent="var(--accent-blue)"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <Stat
+                  icon={<LocationOnIcon sx={{ fontSize: 16 }} />}
+                  label="Longitude"
+                  value={longitude != null ? longitude.toFixed(6) : undefined}
+                  accent="var(--accent-blue)"
                 />
               </Grid>
             </Grid>

@@ -73,7 +73,31 @@ export const useLiveTelemetry = (
 
       ws.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data) as Telemetry
+          const parsed = JSON.parse(event.data)
+          // Handle both direct telemetry object and wrapped messages (e.g., {data: {...}}, {payload: {...}}, {telemetry: {...}})
+          let message: Telemetry
+          if (parsed && typeof parsed === 'object') {
+            if ('drone_id' in parsed && ('latitude' in parsed || 'absolute_altitude_m' in parsed || 'flight_mode' in parsed)) {
+              // Direct telemetry object
+              message = parsed as Telemetry
+            } else if ('data' in parsed && parsed.data && typeof parsed.data === 'object') {
+              // Wrapped as {data: {...}}
+              message = parsed.data as Telemetry
+            } else if ('payload' in parsed && parsed.payload && typeof parsed.payload === 'object') {
+              // Wrapped as {payload: {...}}
+              message = parsed.payload as Telemetry
+            } else if ('telemetry' in parsed && parsed.telemetry && typeof parsed.telemetry === 'object') {
+              // Wrapped as {telemetry: {...}}
+              message = parsed.telemetry as Telemetry
+            } else {
+              // Fallback: assume it's the telemetry object itself
+              message = parsed as Telemetry
+            }
+          } else {
+            throw new Error('Invalid message format')
+          }
+          
+          // Store the complete telemetry message with all fields preserved
           setLatestByDrone((prev) => ({ ...prev, [droneId]: message }))
           setHistoryByDrone((prev) => {
             const current = prev[droneId] ?? []
