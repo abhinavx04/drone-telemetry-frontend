@@ -8,7 +8,8 @@ import {
   WS_BASE,
 } from '../config'
 import { getLatestTelemetry } from '../api/client'
-import type { Telemetry } from '../api/types'
+import type { Telemetry, RawTelemetry } from '../api/types'
+import { normalizeTelemetry } from '../api/types'
 
 type StreamState = 'idle' | 'connecting' | 'open' | 'closed'
 
@@ -73,7 +74,8 @@ export const useLiveTelemetry = (
 
       ws.onmessage = (event) => {
         try {
-          const message = JSON.parse(event.data) as Telemetry
+          const raw = JSON.parse(event.data) as RawTelemetry
+          const message = normalizeTelemetry(raw)
           setLatestByDrone((prev) => ({ ...prev, [droneId]: message }))
           setHistoryByDrone((prev) => {
             const current = prev[droneId] ?? []

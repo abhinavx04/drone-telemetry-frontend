@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { API_BASE } from '../config'
-import type { DroneSummary, HealthResponse, Telemetry } from './types'
+import type { DroneSummary, HealthResponse, Telemetry, RawTelemetry } from './types'
+import { normalizeTelemetry } from './types'
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -18,7 +19,7 @@ export const getDrones = async (): Promise<DroneSummary[]> => {
 }
 
 export const getLatestTelemetry = async (droneId: string): Promise<Telemetry> => {
-  const res = await api.get<Telemetry>(`/api/v1/drones/${droneId}/telemetry/latest`)
-  return res.data
+  const res = await api.get<RawTelemetry>(`/api/v1/drones/${droneId}/telemetry/latest`)
+  return normalizeTelemetry(res.data)
 }
 
