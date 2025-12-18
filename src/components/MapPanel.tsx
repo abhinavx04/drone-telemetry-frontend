@@ -1,17 +1,37 @@
-import { useEffect, useState } from 'react'
-import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { useEffect, useRef, useState } from 'react'
+import { MapContainer, Marker, Polyline, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { Box, Stack, Typography } from '@mui/material'
 import type { DroneSummary, Telemetry } from '../api/types'
+import type { DroneMeta, DroneTrackState, TrackSegment } from '../hooks/useDroneTracks'
 
 type MapPanelProps = {
   drones: DroneSummary[]
   selectedId: string | null
   telemetry?: Telemetry
   onSelect: (id: string) => void
+  tracks: DroneTrackState
+  metaByDrone: Record<string, DroneMeta>
+  showTracks: boolean
 }
 
 type LatLng = [number, number]
+
+const simplifySegment = (segment: TrackSegment, maxPoints = 160, minDelta = 0.00001) => {
+  if (segment.length <= 2) return segment
+
+  const deduped: TrackSegment = [segment[0]]
+  for (let i = 1; i < segment.length; i += 1) {
+    const prev = deduped[deduped.length - 1]
+    const curr = segment[i]
+    if (Math.abs(prev.lat - curr.lat) + Math.abs(prev.lon - curr.lon) < minDelta) continue
+    deduped.push(curr)
+  }
+
+  if (deduped.length <= maxPoints) return deduped
+  const step = Math.ceil(deduped.length / maxPoints)
+  return deduped.filter((_, idx) => idx % step === 0 || idx === deduped.length - 1)
+}
 
 // Create custom drone icon with heading indicator
 const createDroneIcon = (heading: number, isSelected: boolean, isStale: boolean) => {
@@ -64,9 +84,28 @@ const MapAutoCenter = ({ center, shouldAnimate }: { center: LatLng; shouldAnimat
   return null
 }
 
-const MapPanel = ({ drones, selectedId, telemetry, onSelect }: MapPanelProps) => {
+const MapPanel = ({
+  drones,
+  selectedId,
+  telemetry,
+  onSelect,
+  tracks,
+  metaByDrone,
+  showTracks,
+}: MapPanelProps) => {
   const [zoom] = useState(6)
   const [hasInitialized, setHasInitialized] = useState(false)
+  const [mapCenter, setMapCenter] = useState<LatLng>(() => {
+    if (typeof telemetry?.latitude === 'number' && typeof telemetry?.longitude === 'number') {
+      return [telemetry.latitude, telemetry.longitude]
+    }
+    const match = drones.find((d) => d.id === selectedId)
+    if (typeof match?.position?.lat === 'number' && typeof match?.position?.lon === 'number') {
+      return [match.position.lat, match.position.lon]
+    }
+    return [20, 0]
+  })
+  const lastSelectedRef = useRef<string | null>(selectedId)
 
   useEffect(() => {
     // Mark as initialized after first render to enable animations
@@ -74,8 +113,30 @@ const MapPanel = ({ drones, selectedId, telemetry, onSelect }: MapPanelProps) =>
     return () => clearTimeout(timer)
   }, [])
 
+  useEffect(() => {
+    if (selectedId && lastSelectedRef.current !== selectedId) {
+      lastSelectedRef.current = selectedId
+      const match = drones.find((d) => d.id === selectedId)
+      const lat =
+        (selectedId === telemetry?.drone_id && typeof telemetry?.latitude === 'number'
+          ? telemetry.latitude
+          : match?.position?.lat)
+      const lon =
+        (selectedId === telemetry?.drone_id && typeof telemetry?.longitude === 'number'
+          ? telemetry.longitude
+          : match?.position?.lon)
+      if (typeof lat === 'number' && typeof lon === 'number') {
+        setMapCenter([lat, lon])
+      }
+    }
+  }, [drones, selectedId, telemetry?.drone_id, telemetry?.latitude, telemetry?.longitude])
+
   const selectedPosition: LatLng | null = (() => {
-    if (typeof telemetry?.latitude === 'number' && typeof telemetry?.longitude === 'number') {
+    if (
+      selectedId === telemetry?.drone_id &&
+      typeof telemetry?.latitude === 'number' &&
+      typeof telemetry?.longitude === 'number'
+    ) {
       return [telemetry.latitude, telemetry.longitude]
     }
     const match = drones.find((d) => d.id === selectedId)
@@ -84,8 +145,6 @@ const MapPanel = ({ drones, selectedId, telemetry, onSelect }: MapPanelProps) =>
     }
     return null
   })()
-
-  const initialCenter: LatLng = selectedPosition ?? [20, 0]
 
   return (
     <Box>
@@ -113,13 +172,13 @@ const MapPanel = ({ drones, selectedId, telemetry, onSelect }: MapPanelProps) =>
         }}
       >
         <MapContainer
-          center={initialCenter}
+          center={mapCenter}
           zoom={zoom}
           style={{ height: '100%', width: '100%' }}
           scrollWheelZoom
           preferCanvas
         >
-          <MapAutoCenter center={initialCenter} shouldAnimate={hasInitialized} />
+          <MapAutoCenter center={mapCenter} shouldAnimate={hasInitialized} />
           
           {/* Dark map tiles */}
           <TileLayer
@@ -127,8 +186,41 @@ const MapPanel = ({ drones, selectedId, telemetry, onSelect }: MapPanelProps) =>
             attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           />
 
+          {/* Drone tracks */}
+          {showTracks &&
+            Object.entries(selectedId ? { [selectedId]: tracks[selectedId] ?? [] } : tracks).map(
+              ([droneId, segments]) => {
+                const meta = metaByDrone[droneId]
+                const color = meta?.color ?? '#3b82f6'
+                const isSelected = droneId === selectedId
+
+                return segments
+                  .filter((segment) => segment.length >= 2)
+                  .map((segment, idx) => {
+                    const simplified = simplifySegment(segment)
+                    return (
+                      <Polyline
+                        key={`${droneId}-${idx}`}
+                        positions={simplified.map((p) => [p.lat, p.lon] as LatLng)}
+                        pathOptions={{
+                          color,
+                          weight: isSelected ? 4 : 3,
+                          opacity: isSelected ? 0.9 : 0.7,
+                        }}
+                      >
+                        <Tooltip direction="top" offset={[0, -10]} opacity={0.85}>
+                          <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                            {droneId}
+                          </Typography>
+                        </Tooltip>
+                      </Polyline>
+                    )
+                  })
+              },
+            )}
+
           {/* Drone markers */}
-          {drones.map((drone) => {
+          {(selectedId ? drones.filter((d) => d.id === selectedId) : drones).map((drone) => {
             const isSelected = drone.id === selectedId
             const lat = isSelected && telemetry?.latitude ? telemetry.latitude : drone.position?.lat
             const lon = isSelected && telemetry?.longitude ? telemetry.longitude : drone.position?.lon

@@ -168,6 +168,9 @@ const DroneDetailPanel = ({
           <Typography sx={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
             Live telemetry with auto-reconnect
           </Typography>
+          <Typography sx={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Last update: {lastSeenText}
+          </Typography>
         </Box>
 
         {/* Connection & GPS status */}

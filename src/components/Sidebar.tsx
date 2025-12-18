@@ -1,3 +1,4 @@
+import type React from 'react'
 import { Box, Stack, Typography, Tooltip } from '@mui/material'
 
 // Icons
@@ -32,6 +33,7 @@ const navSections: NavSection[] = [
     items: [
       { id: 'command-center', label: 'Command Center', icon: <DashboardIcon /> },
       { id: 'live-tracking', label: 'Live Tracking', icon: <RadarIcon />, badge: 'LIVE' },
+      { id: 'toggle-tracks', label: 'Show Tracks', icon: <MapIcon /> },
     ],
   },
   {
@@ -63,9 +65,11 @@ type SidebarProps = {
   activeItem: string
   onNavigate: (id: string) => void
   collapsed?: boolean
+  showTracks: boolean
+  onToggleTracks: () => void
 }
 
-const Sidebar = ({ activeItem, onNavigate, collapsed = false }: SidebarProps) => {
+const Sidebar = ({ activeItem, onNavigate, collapsed = false, showTracks, onToggleTracks }: SidebarProps) => {
   return (
     <Box className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       {/* Logo */}
@@ -93,30 +97,50 @@ const Sidebar = ({ activeItem, onNavigate, collapsed = false }: SidebarProps) =>
                 const isActive = activeItem === item.id
                 const isDisabled = item.disabled
 
+                const isTrackToggle = item.id === 'toggle-tracks'
+                const dynamicLabel = isTrackToggle ? (showTracks ? 'Hide Tracks' : 'Show Tracks') : item.label
+                const dynamicBadge =
+                  isTrackToggle ? (showTracks ? 'ON' : 'OFF') : item.badge
+
+                const handleClick = () => {
+                  if (isDisabled) return
+                  if (isTrackToggle) {
+                    onToggleTracks()
+                    return
+                  }
+                  onNavigate(item.id)
+                }
+
+                const handleKeyDown = (e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter' && !isDisabled) {
+                    handleClick()
+                  }
+                }
+
                 const navItem = (
                   <Box
                     key={item.id}
                     className={`nav-item ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
-                    onClick={() => !isDisabled && onNavigate(item.id)}
+                    onClick={handleClick}
                     tabIndex={isDisabled ? -1 : 0}
                     role="button"
-                    onKeyDown={(e) => e.key === 'Enter' && !isDisabled && onNavigate(item.id)}
+                    onKeyDown={handleKeyDown}
                   >
                     <Box className="nav-item-icon">{item.icon}</Box>
                     {!collapsed && (
                       <>
-                        <Typography className="nav-item-label">{item.label}</Typography>
-                        {item.badge !== undefined && (
+                        <Typography className="nav-item-label">{dynamicLabel}</Typography>
+                        {dynamicBadge !== undefined && (
                           <Box
-                            className={`nav-item-badge ${item.badge === 'LIVE' ? 'live' : ''}`}
+                            className={`nav-item-badge ${dynamicBadge === 'LIVE' ? 'live' : ''}`}
                           >
-                            {item.badge === 'LIVE' ? (
+                            {dynamicBadge === 'LIVE' ? (
                               <>
                                 <Box className="live-dot-small" />
                                 LIVE
                               </>
                             ) : (
-                              item.badge
+                              dynamicBadge
                             )}
                           </Box>
                         )}

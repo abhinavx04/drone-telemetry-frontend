@@ -18,11 +18,13 @@ import DroneDetailPanel from './components/DroneDetailPanel'
 import MapPanel from './components/MapPanel'
 import { STALE_THRESHOLD_MS } from './config'
 import { useLiveTelemetry } from './hooks/useLiveTelemetry'
+import { useDroneTracks } from './hooks/useDroneTracks'
 
 function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [activeNav, setActiveNav] = useState('live-tracking')
+  const [showTracks, setShowTracks] = useState(true)
 
   const {
     data: health,
@@ -69,6 +71,8 @@ function App() {
     isStale,
   } = useLiveTelemetry(resolvedSelectedId, nowMs)
 
+  const { tracks, metaByDrone } = useDroneTracks(drones ?? [])
+
   const showHealthWarning =
     healthError || (!healthLoading && health && health.status && health.status !== 'ok')
 
@@ -79,10 +83,17 @@ function App() {
     // Future: implement routing for different views
   }
 
+  const handleToggleTracks = () => setShowTracks((prev) => !prev)
+
   return (
     <Box className="app-shell">
       {/* Sidebar Navigation */}
-      <Sidebar activeItem={activeNav} onNavigate={handleNavigate} />
+      <Sidebar
+        activeItem={activeNav}
+        onNavigate={handleNavigate}
+        showTracks={showTracks}
+        onToggleTracks={handleToggleTracks}
+      />
 
       {/* Main Content Area */}
       <Box className="main-content">
@@ -275,6 +286,9 @@ function App() {
                       selectedId={resolvedSelectedId}
                       telemetry={telemetry?.drone_id === resolvedSelectedId ? telemetry : undefined}
                       onSelect={setSelectedId}
+                      tracks={tracks}
+                      metaByDrone={metaByDrone}
+                    showTracks={showTracks}
                     />
                   </Card>
                   <DroneDetailPanel
